@@ -1,2 +1,2 @@
 # pyelabdata
-Simplified access to data stored in elabftw
+Simplified access to data stored in eLabFTW.
