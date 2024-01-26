@@ -10,9 +10,11 @@ import elabapi_python
 import pandas as pd
 import tempfile
 import os
+import time
 from matplotlib.figure import Figure
 from io import StringIO
 from pathlib import Path
+from IPython.display import display, Javascript, HTML
 
 __APICLIENT__ = None
 
@@ -218,6 +220,43 @@ def get_file_csv_data(expid: int, filename: str, header: bool=True, sep: str=','
             raise RuntimeError('Wrong datatype')
         
         
+def upload_file(expid: int, file: str, comment: str,
+                replacefile: bool=True):
+    """Upload an excisting file to an experiment on eLabFTW
+    
+    Parameters
+    ----------
+    expid : int
+        The id of the experiment in eLabFTW into which the file
+        should be uploaded.
+    file : str
+        The name and path of the file to be uploaded.
+    comment : str
+        A comment decribing the file.
+    replacefile : bool, optional
+        If True, an existing file with the same name will be overwritten.
+        The default is True.
+
+    Returns
+    -------
+    None.
+
+    """
+
+    global __APICLIENT__
+    if __APICLIENT__ is None:
+        raise RuntimeError('Not connected to eLabFTW server')
+    uploads_api = elabapi_python.UploadsApi(__APICLIENT__)
+    
+    if replacefile:
+        uploadid = __get_upload_id(expid, os.path.basename(file))
+        if uploadid is not None:
+            uploads_api.delete_upload('experiments', expid, uploadid)
+    
+    uploads_api.post_upload('experiments', expid, 
+                            file=file, comment=comment)
+
+
 def upload_image_from_figure(expid: int, fig: Figure,
                              filename: str, comment: str,
                              replacefile: bool=True,
@@ -232,35 +271,123 @@ def upload_image_from_figure(expid: int, fig: Figure,
         should be uploaded.
     fig : matplotlib.figure.Figure
         The matplotlib figure.
-    format : str, optional
-        The image file format. 
-        The default is 'png'.
     filename : str
         The filename without extension.
     comment : str
         A comment decribing the figure.
+    replacefile : bool, optional
+        If True, an existing file with the same name will be overwritten.
+        The default is True.
+    format : str, optional
+        The image file format. 
+        The default is 'png'.
+    dpi : optional
+        The resolution of the image as defined in matplotlib's savefig().
+        The default is 'figure'.
 
     Returns
     -------
     None.
 
     """
-    
-    global __APICLIENT__
-    if __APICLIENT__ is None:
-        raise RuntimeError('Not connected to eLabFTW server')
-    uploads_api = elabapi_python.UploadsApi(__APICLIENT__)
-    
-    if replacefile:
-        uploadid = __get_upload_id(expid, filename)
-        if uploadid is not None:
-            uploads_api.delete_upload('experiments', expid, uploadid)
-    
-    # create a temporary directory for the image
+
+    # create a temporary directory for the image, create it and upload
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpfile = os.path.join(tmpdir, 
                                Path(filename).with_suffix('.' + format))
         fig.savefig(tmpfile, format=format, facecolor='white', dpi=dpi)
-        uploads_api.post_upload('experiments', expid, 
-                                file=tmpfile, comment=comment)
+        upload_file(expid, tmpfile, comment, replacefile)
+        
+        
+def upload_csv_data(expid: int, data,
+                    filename: str, comment: str,
+                    replacefile: bool=True,
+                    index: bool=False):
+    """Generate a csv file from a pandas dataframe or a dictionary of
+    numpy arrays (column data) and upload it to an experiment on eLabFTW
+    
+    Parameters
+    ----------
+    expid : int
+        The id of the experiment in eLabFTW into which the file
+        should be uploaded.
+    data :
+        The data to be stored. This can be either a pandas.DataFrame or
+        a dictionary of 1-dimensional numpy arrays representing column
+        data; in the latter case, the dictionary will be converted into
+        a dataframe before creating the csv file.
+    filename : str
+        The filename with extension (e.g. .txt).
+    comment : str
+        A comment decribing the file.
+    replacefile : bool, optional
+        If True, an existing file with the same name will be overwritten.
+        The default is True.
+    index : bool, optional
+        If True, write also dataframe row names (index) to file.
+        The default is False.
 
+    Returns
+    -------
+    None.
+
+    """
+
+    # if data is not a dataframe, try to convert data to dataframe
+    if isinstance(data, pd.DataFrame):
+        df = data
+    else:
+        df = pd.DataFrame(data)
+
+    # create a temporary directory for the file, create it and upload
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpfile = os.path.join(tmpdir, filename)
+        df.to_csv(tmpfile, index=index)
+        upload_file(expid, tmpfile, comment, replacefile)
+    
+    
+def upload_this_jupyternotebook(expid: int, comment: str,
+                                replacefile: bool=True):
+    """Saves and uploads the current jupyter notebook
+    to an experiment on eLabFTW
+    
+    Parameters
+    ----------
+    expid : int
+        The id of the experiment in eLabFTW into which the jupyter notebook
+        should be uploaded.
+    comment : str
+        A comment decribing the jupyter notebook.
+    replacefile : bool, optional
+        If True, an existing file with the same name will be overwritten.
+        The default is True.
+        
+    Returns
+    -------
+    None.
+
+    """
+    
+    # get Jupyter notebook filename
+    # THIS STILL DOESN'T WORK !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    filename = None
+    html = '''
+    <script>
+        IPython.notebook.kernel.execute(
+            'filename = "' + IPython.notebook.notebook_name + '"'
+        )
+    </script>
+    '''
+    display(HTML(html))
+    if filename is None:
+        raise RuntimeError('Could not retrieve the jupyter notebook filename')
+    file = os.join(os.getcwd(), filename)
+    
+    # save notebook and wait for completion
+    start = os.path.getmtime(file)
+    display(Javascript('IPython.notebook.save_checkpoint()'))
+    while os.path.getmtime(file) == start:
+        time.sleep(0.1)
+        
+    # upload to elabftw
+    upload_file(expid, file, comment, replacefile)
