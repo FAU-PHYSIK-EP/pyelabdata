@@ -59,7 +59,7 @@ def disconnect():
     """
     
     global __APICLIENT__
-    del __APICLIENT__
+    __APICLIENT__ = None
     
 
 def conv_df_to_np(df: pd.DataFrame) -> dict:
@@ -119,6 +119,8 @@ def get_table_data(expid: int, tableidx: int=0, header: bool=True,
     """
     
     global __APICLIENT__
+    if __APICLIENT__ is None:
+        raise RuntimeError('Not connected to eLabFTW server')
     exp_api = elabapi_python.ExperimentsApi(__APICLIENT__)
     
     # fetch experiment
@@ -145,6 +147,8 @@ def get_table_data(expid: int, tableidx: int=0, header: bool=True,
 
 def __get_upload_id(expid: int, filename: str):
     global __APICLIENT__
+    if __APICLIENT__ is None:
+        raise RuntimeError('Not connected to eLabFTW server')
     uploads_api = elabapi_python.UploadsApi(__APICLIENT__)
 
     # fetch metadata of all uploads and search for filename
@@ -187,6 +191,8 @@ def get_file_csv_data(expid: str, filename, header=True, sep=',', datatype='np')
     """
 
     global __APICLIENT__
+    if __APICLIENT__ is None:
+        raise RuntimeError('Not connected to eLabFTW server')
     uploads_api = elabapi_python.UploadsApi(__APICLIENT__)
     
     uploadid = __get_upload_id(expid, filename)
@@ -241,6 +247,8 @@ def upload_image_from_figure(expid: int, fig: Figure,
     """
     
     global __APICLIENT__
+    if __APICLIENT__ is None:
+        raise RuntimeError('Not connected to eLabFTW server')
     uploads_api = elabapi_python.UploadsApi(__APICLIENT__)
     
     if replacefile:
