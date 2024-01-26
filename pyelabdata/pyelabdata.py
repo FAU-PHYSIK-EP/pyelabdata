@@ -2,7 +2,7 @@
 """
 Created on Wed Jan 24 14:46:36 2024
 
-@author: Michael Krieger
+@author: Michael Krieger (lapmk)
 """
 
 import numpy as np
@@ -161,7 +161,7 @@ def __get_upload_id(expid: int, filename: str):
     return uploadid
     
 
-def get_file_csv_data(expid: str, filename, header=True, sep=',', datatype='np'):   
+def get_file_csv_data(expid: int, filename: str, header: bool=True, sep: str=',', datatype: str='np'):   
     """Read and return data from a csv-like text file attached to 
     an experiment stored in eLabFTW.
 
