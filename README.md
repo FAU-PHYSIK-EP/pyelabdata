@@ -7,15 +7,22 @@ Examples for the use of pyelabdata can be found in the examples folder.
 
 ## Functions
 
-### connect(host, apikey)
+```python
+def connect(host: str, apikey: str):
+```
 Connects to the API interface of the eLabFTW server specified by the
 parameter host (e.g. https://yourserver.org/api/v2) using the given
 apikey.
 
-### disconnect()
+```python
+def disconnect():
+```
 Disconnect from the eLabFTW server.
 
-### get_table_data(expid, tableidx=0, header=True, datatype='np')
+```python
+def get_table_data(expid: int, 
+                   tableidx: int=0, header: bool=True, datatype: str='np'):
+```
 In eLabFTW, tables can be defined in the body text of experiments.
 The data of such tables can be retrieved by using this function.
 expid is an integer number which identifies the eLabFTW experiment.
@@ -29,7 +36,10 @@ representing the table data is returned, whereas for 'np' a dictionary
 of numpy arrays for each column is returned, in which the keys correspond
 to the column heading (in case of header=True).
 
-### get_file_csv_data(expid, filename, header=True, sep=',', datatype='np')
+```python
+def get_file_csv_data(expid: int, filename: str, 
+                      header: bool=True, sep: str=',', datatype: str='np'):
+```
 Get the data from csv files attached to eLabFTW experiments.
 expid is the experiment identifier (integer number), filename is
 the name of the file stored in the experiment. 
@@ -38,7 +48,12 @@ All other parameters are optional. sep is the column separator,
 by default a comma. The parameters header and datatype have the same
 meaning as in get_table_data()
 
-### upload_image_from_figure(expid, fig, filename, comment, replacefile=True, format='png', dpi='figure')
+```python
+def upload_image_from_figure(expid: int, fig: Figure,
+                             filename: str, comment: str,
+                             replacefile: bool=True,
+                             format: str='png', dpi='figure'):
+```
 Upload an image of a matplotlib Figure (e.g. created by: fig, ax = plt.subplots())
 as attachment to an eLabFTW experiment. expid is the experiment identifier
 (integer number), fig a matplotlib.figure.Figure object, filename the
