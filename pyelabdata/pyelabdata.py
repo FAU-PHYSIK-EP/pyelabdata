@@ -11,6 +11,7 @@ import pandas as pd
 import tempfile
 import os
 import time
+import ipyparams
 from matplotlib.figure import Figure
 from io import StringIO
 from pathlib import Path
@@ -369,19 +370,8 @@ def upload_this_jupyternotebook(expid: int, comment: str,
     """
     
     # get Jupyter notebook filename
-    # THIS STILL DOESN'T WORK !!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    filename = None
-    html = '''
-    <script>
-        IPython.notebook.kernel.execute(
-            'filename = "' + IPython.notebook.notebook_name + '"'
-        )
-    </script>
-    '''
-    display(HTML(html))
-    if filename is None:
-        raise RuntimeError('Could not retrieve the jupyter notebook filename')
-    file = os.join(os.getcwd(), filename)
+    filename = ipyparams.notebook_name
+    file = os.path.join(os.getcwd(), filename)
     
     # save notebook and wait for completion
     start = os.path.getmtime(file)
