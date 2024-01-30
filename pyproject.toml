@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "pyelabdata"
 version = "0.1.0"
 authors = [
-    { name="Elektronikpraktikum, Department Physik, FAU Erlangen-NÃ¼rnberg", email="physik-ep@fau.de" }
+    { name="Elektronikpraktikum, Department Physik, FAU Erlangen-Nürnberg", email="physik-ep@fau.de" }
 ]
 description = "pyelabdata provides functions for simple one-line access to data in eLabFTW"
 readme = "README.md"
