@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Jan 24 14:46:36 2024
-
 @author: Michael Krieger (lapmk)
 """
 
@@ -15,9 +13,10 @@ import ipyparams
 from matplotlib.figure import Figure
 from io import StringIO
 from pathlib import Path
-from IPython.display import display, Javascript, HTML
+from IPython.display import display, Javascript
 
 __APICLIENT__ = None
+__EXPID__ = None
 
 def connect(host: str, apikey: str):
     """Connect to eLabFTW server API.
@@ -65,7 +64,49 @@ def disconnect():
     __APICLIENT__ = None
     
 
-def conv_df_to_np(df: pd.DataFrame) -> dict:
+def open_experiment(expid: int):
+    """Open an experiment on eLabFTW.
+    This experiment will be used for all subsequent commands 
+    (unless otherwise specified.)
+
+    Parameters
+    ----------
+    expid : int
+        The id of the experiment in eLabFTW to be read.
+
+    Returns
+    -------
+    None.
+
+    """
+
+    global __APICLIENT__
+    global __EXPID__
+    __EXPID__ = expid
+    
+    if __APICLIENT__ is None:
+        raise RuntimeError('Not connected to eLabFTW server')
+    exp_api = elabapi_python.ExperimentsApi(__APICLIENT__)
+    
+    # fetch experiment
+    return exp_api.get_experiment(__EXPID__)
+
+
+def close_experiment():
+    """Close experiment.
+    Subsequent commands will not further operate on the experiment.
+    
+    Returns
+    -------
+    None.
+
+    """
+
+    global __EXPID__
+    __EXPID__ = None
+
+
+def __conv_df_to_np(df: pd.DataFrame) -> dict:
     """Convert a pandas dataframe to a dictionary of numpy arrays
     for each column with keys corresponding to the column headings.
     In case of duplicate column headings, a consecutive number is
@@ -93,15 +134,13 @@ def conv_df_to_np(df: pd.DataFrame) -> dict:
     return data
 
 
-def get_table_data(expid: int, tableidx: int=0, header: bool=True, 
-                   datatype: str='np'):   
+def get_table_data(tableidx: int=0, header: bool=True, 
+                   datatype: str='np', expid: int=None):   
     """Read and return table data from the body text of an experiment 
     stored in eLabFTW.
 
     Parameters
     ----------
-    expid : int
-        The id of the experiment in eLabFTW to be read.
     tableidx : int, optional
         The index of the table to be read; first table has index 0. 
         The default is 0.
@@ -113,6 +152,9 @@ def get_table_data(expid: int, tableidx: int=0, header: bool=True,
         'df': return a pandas dataframe,
         'np': return a dictionary of numpy arrays for each column. 
         The default is 'np'.
+    expid : int
+        The id of the experiment in eLabFTW to be read.
+        If None, the experiment specified by open_experiment() is used.
 
     Returns
     -------
@@ -126,6 +168,13 @@ def get_table_data(expid: int, tableidx: int=0, header: bool=True,
         raise RuntimeError('Not connected to eLabFTW server')
     exp_api = elabapi_python.ExperimentsApi(__APICLIENT__)
     
+    if expid is None:
+        global __EXPID__
+        expid = __EXPID__
+
+    if expid is None:
+        raise RuntimeError('No experiment opened or specified')
+   
     # fetch experiment
     exp = exp_api.get_experiment(expid)
     
@@ -143,7 +192,7 @@ def get_table_data(expid: int, tableidx: int=0, header: bool=True,
     if datatype == 'df':
         return table
     elif datatype == 'np':
-        return conv_df_to_np(table)
+        return __conv_df_to_np(table)
     else:
         raise RuntimeError('Wrong datatype')
     
@@ -164,14 +213,12 @@ def __get_upload_id(expid: int, filename: str):
     return uploadid
     
 
-def get_file_csv_data(expid: int, filename: str, header: bool=True, sep: str=',', datatype: str='np'):   
+def get_file_csv_data(filename: str, header: bool=True, sep: str=',', datatype: str='np', expid: int=None):   
     """Read and return data from a csv-like text file attached to 
     an experiment stored in eLabFTW.
 
     Parameters
     ----------
-    expid : int
-        The id of the experiment in eLabFTW to be read.
     filenamex : str
         The filename of the file to be read from the experiment.
     header : bool, optional
@@ -185,6 +232,9 @@ def get_file_csv_data(expid: int, filename: str, header: bool=True, sep: str=','
         'df': return a pandas dataframe,
         'np': return a dictionary of numpy arrays for each column. 
         The default is 'np'.
+    expid : int
+        The id of the experiment in eLabFTW to be read.
+        If None, the experiment specified by open_experiment() is used.
 
     Returns
     -------
@@ -193,10 +243,17 @@ def get_file_csv_data(expid: int, filename: str, header: bool=True, sep: str=','
 
     """
 
-    global __APICLIENT__
+    global __APICLIENT__   
     if __APICLIENT__ is None:
         raise RuntimeError('Not connected to eLabFTW server')
     uploads_api = elabapi_python.UploadsApi(__APICLIENT__)
+    
+    if expid is None:
+        global __EXPID__
+        expid = __EXPID__
+
+    if expid is None:
+        raise RuntimeError('No experiment opened or specified')
     
     uploadid = __get_upload_id(expid, filename)
           
@@ -216,20 +273,17 @@ def get_file_csv_data(expid: int, filename: str, header: bool=True, sep: str=','
         if datatype == 'df':
             return df
         elif datatype == 'np':
-            return conv_df_to_np(df)
+            return __conv_df_to_np(df)
         else:
             raise RuntimeError('Wrong datatype')
         
         
-def upload_file(expid: int, file: str, comment: str,
-                replacefile: bool=True):
+def upload_file(file: str, comment: str,
+                replacefile: bool=True, expid: int=None):
     """Upload an excisting file to an experiment on eLabFTW
     
     Parameters
     ----------
-    expid : int
-        The id of the experiment in eLabFTW into which the file
-        should be uploaded.
     file : str
         The name and path of the file to be uploaded.
     comment : str
@@ -237,6 +291,10 @@ def upload_file(expid: int, file: str, comment: str,
     replacefile : bool, optional
         If True, an existing file with the same name will be overwritten.
         The default is True.
+    expid : int
+        The id of the experiment in eLabFTW into which the file
+        should be uploaded.
+        If None, the experiment specified by open_experiment() is used.
 
     Returns
     -------
@@ -248,6 +306,13 @@ def upload_file(expid: int, file: str, comment: str,
     if __APICLIENT__ is None:
         raise RuntimeError('Not connected to eLabFTW server')
     uploads_api = elabapi_python.UploadsApi(__APICLIENT__)
+
+    if expid is None:
+        global __EXPID__
+        expid = __EXPID__
+
+    if expid is None:
+        raise RuntimeError('No experiment opened or specified')
     
     if replacefile:
         uploadid = __get_upload_id(expid, os.path.basename(file))
@@ -258,18 +323,15 @@ def upload_file(expid: int, file: str, comment: str,
                             file=file, comment=comment)
 
 
-def upload_image_from_figure(expid: int, fig: Figure,
-                             filename: str, comment: str,
+def upload_image_from_figure(fig: Figure, filename: str, comment: str,
                              replacefile: bool=True,
-                             format: str='png', dpi='figure'):
+                             format: str='png', dpi='figure',
+                             expid: int=None):
     """Generate image from matplotlib figure and upload it to
     an experiment on eLabFTW
     
     Parameters
     ----------
-    expid : int
-        The id of the experiment in eLabFTW into which the image
-        should be uploaded.
     fig : matplotlib.figure.Figure
         The matplotlib figure.
     filename : str
@@ -285,6 +347,10 @@ def upload_image_from_figure(expid: int, fig: Figure,
     dpi : optional
         The resolution of the image as defined in matplotlib's savefig().
         The default is 'figure'.
+    expid : int
+        The id of the experiment in eLabFTW into which the image
+        should be uploaded.
+        If None, the experiment specified by open_experiment() is used.
 
     Returns
     -------
@@ -297,21 +363,17 @@ def upload_image_from_figure(expid: int, fig: Figure,
         tmpfile = os.path.join(tmpdir, 
                                Path(filename).with_suffix('.' + format))
         fig.savefig(tmpfile, format=format, facecolor='white', dpi=dpi)
-        upload_file(expid, tmpfile, comment, replacefile)
+        upload_file(tmpfile, comment, replacefile, expid=expid)
         
         
-def upload_csv_data(expid: int, data,
-                    filename: str, comment: str,
-                    replacefile: bool=True,
-                    index: bool=False):
+def upload_csv_data(data, filename: str, comment: str,
+                    replacefile: bool=True, index: bool=False,
+                    expid: int=None):
     """Generate a csv file from a pandas dataframe or a dictionary of
     numpy arrays (column data) and upload it to an experiment on eLabFTW
     
     Parameters
     ----------
-    expid : int
-        The id of the experiment in eLabFTW into which the file
-        should be uploaded.
     data :
         The data to be stored. This can be either a pandas.DataFrame or
         a dictionary of 1-dimensional numpy arrays representing column
@@ -327,6 +389,10 @@ def upload_csv_data(expid: int, data,
     index : bool, optional
         If True, write also dataframe row names (index) to file.
         The default is False.
+    expid : int
+        The id of the experiment in eLabFTW into which the file
+        should be uploaded.
+        If None, the experiment specified by open_experiment() is used.
 
     Returns
     -------
@@ -344,31 +410,32 @@ def upload_csv_data(expid: int, data,
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpfile = os.path.join(tmpdir, filename)
         df.to_csv(tmpfile, index=index)
-        upload_file(expid, tmpfile, comment, replacefile)
+        upload_file(tmpfile, comment, replacefile, expid=expid)
     
     
-def upload_this_jupyternotebook(expid: int, comment: str,
-                                replacefile: bool=True):
+def upload_this_jupyternotebook(comment: str, replacefile: bool=True,
+                                expid: int=None):
     """Saves and uploads the current jupyter notebook
     to an experiment on eLabFTW
     
     Parameters
     ----------
-    expid : int
-        The id of the experiment in eLabFTW into which the jupyter notebook
-        should be uploaded.
     comment : str
         A comment decribing the jupyter notebook.
     replacefile : bool, optional
         If True, an existing file with the same name will be overwritten.
         The default is True.
+    expid : int
+        The id of the experiment in eLabFTW into which the jupyter notebook
+        should be uploaded.
+        If None, the experiment specified by open_experiment() is used.
         
     Returns
     -------
     None.
 
     """
-    
+   
     # get Jupyter notebook filename
     filename = ipyparams.notebook_name
     file = os.path.join(os.getcwd(), filename)
@@ -380,4 +447,4 @@ def upload_this_jupyternotebook(expid: int, comment: str,
         time.sleep(0.1)
         
     # upload to elabftw
-    upload_file(expid, file, comment, replacefile)
+    upload_file(file, comment, replacefile, expid=expid)
