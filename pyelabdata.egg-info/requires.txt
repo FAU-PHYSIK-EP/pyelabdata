@@ -1,0 +1,7 @@
+numpy
+elabapi_python
+pandas
+ipyparams
+matplotlib
+pathlib
+IPython

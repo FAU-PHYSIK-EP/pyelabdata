@@ -20,10 +20,19 @@ def disconnect():
 Disconnect from the eLabFTW server.
 
 ```python
-def open_experiment(expid: int):
+def list_experiments(searchstring: str='', tags=[]):
 ```
-Open an experiment in eLabFTW using the id of the experiment. The 
-function returns a JSON with the metadata of the experiment.
+Retrieve a list of ids of all experiments that contain `searchstring`
+in the title, body or elabid and that match the tags specified in `tags`.
+All parameters are optional. If nothing is specified, all accessible
+experiments will be listed.
+
+```python
+def open_experiment(expid: int, returndata: bool=False):
+```
+Open an experiment in eLabFTW using the id of the experiment. If `returndata`
+is `True`, the function returns a dictionary with the metadata of the 
+experiment.
 All subsequent commands will operate on the opened experiment.
 
 ```python
@@ -31,6 +40,18 @@ def close_experiment():
 ```
 Close the current experiment.
 Subsequent commands will not further operate on the experiment.
+
+```python
+def get_maintext(format: str='html', expid: int=None):
+```
+Retrieve the body text of the experiment.
+
+All parameters are optional. If `format` is `'html'`, the content of
+body_html is returned, i.e. the body text in html format. Otherwise
+the content of body is returned, which depends on the format used in
+eLabFTW (markdown or html).
+`expid` is an integer number which identifies the eLabFTW experiment; 
+if set to None, the currently opened experiment is used.
 
 ```python
 def get_table_data(tableidx: int=0, header: bool=True, 
@@ -53,8 +74,8 @@ if set to None, the currently opened experiment is used.
 
 ```python
 def get_file_csv_data(filename: str, 
-                      header: bool=True, sep: str=',', datatype: str='np', 
-                      expid: int=None):
+                      header: bool=True, sep: str=',', 
+                      datatype: str='np', expid: int=None):
 ```
 Get the data from csv files attached to eLabFTW experiments.
 `filename` is the name of the file stored in the experiment. 
@@ -79,13 +100,14 @@ if set to None, the currently opened experiment is used.
 
 ```python
 def upload_image_from_figure(fig: Figure, filename: str, comment: str,
-                             replacefile: bool=True, format: str='png', dpi='figure'
+                             replacefile: bool=True, 
+                             format: str='png', dpi='figure',
                              expid: int=None):
 ```
-Upload an image of a matplotlib Figure (e.g. created by `fig, ax = plt.subplots()`)
-as attachment to an eLabFTW experiment. `fig` a `matplotlib.figure.Figure` object, `filename` the
-name of the image file to be uploaded, and `comment` is a description of
-the image.
+Upload an image of a matplotlib Figure (e.g. created by 
+`fig, ax = plt.subplots()`) as attachment to an eLabFTW experiment. 
+`fig` a `matplotlib.figure.Figure` object, `filename` the name of the image 
+file to be uploaded, and `comment` is a description of the image.
 
 All other parameters are optional. If `replacefile` is true, an existing 
 file with the same filename will be replaced. Otherwise, a new attachment

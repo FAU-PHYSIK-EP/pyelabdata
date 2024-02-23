@@ -62,9 +62,38 @@ def disconnect():
     
     global __APICLIENT__
     __APICLIENT__ = None
-    
 
-def open_experiment(expid: int):
+
+def list_experiments(searchstring: str='', tags=[]):
+    """Return a list of all experiments that contain searchstring
+    in title, body or elabid and that match the tags.
+
+    Parameters
+    ----------
+    searchstring: str, optional
+        A string that needs to be contained in the title, body or elabid
+        of the experiments.
+        The default is ''.
+    tags : list, optional
+        A list of tags for which experiments should be searched.
+        The default is an empty list.
+
+    Returns
+    -------
+    A list of experiment ids that match the tags.
+
+    """
+
+    global __APICLIENT__
+    if __APICLIENT__ is None:
+        raise RuntimeError('Not connected to eLabFTW server')
+    exp_api = elabapi_python.ExperimentsApi(__APICLIENT__)
+
+    exps = exp_api.read_experiments(q=searchstring, tags=tags, limit=9999)
+    return [exp.id for exp in exps]
+
+
+def open_experiment(expid: int, returndata: bool=False):
     """Open an experiment on eLabFTW.
     This experiment will be used for all subsequent commands 
     (unless otherwise specified.)
@@ -73,6 +102,10 @@ def open_experiment(expid: int):
     ----------
     expid : int
         The id of the experiment in eLabFTW to be read.
+    returndata : bool, optional
+        If True, open_experiment will return a dictionary containing
+        the experiment's metadata.
+        The default is False
 
     Returns
     -------
@@ -89,7 +122,9 @@ def open_experiment(expid: int):
     exp_api = elabapi_python.ExperimentsApi(__APICLIENT__)
     
     # fetch experiment
-    return exp_api.get_experiment(__EXPID__)
+    exp = exp_api.get_experiment(__EXPID__)
+    if returndata:
+        return exp
 
 
 def close_experiment():
@@ -134,6 +169,49 @@ def __conv_df_to_np(df: pd.DataFrame) -> dict:
     return data
 
 
+def get_maintext(format: str='html', expid: int=None):
+    """Read and return the main (or body) text of an experiment
+    stored in eLabFTW.
+    
+    Parameters
+    ----------
+    format: str, optional
+        If format is 'html', the content of body_html of the experiment
+        is returned, otherwise the content of body.
+        The default is 'html'.
+    expid : int, optional
+        The id of the experiment in eLabFTW to be read.
+        If None, the experiment specified by open_experiment() is used.
+        The default is None.
+
+    Returns
+    -------
+    str
+        Returns the main (or body) text
+
+    """
+
+    global __APICLIENT__
+    if __APICLIENT__ is None:
+        raise RuntimeError('Not connected to eLabFTW server')
+    exp_api = elabapi_python.ExperimentsApi(__APICLIENT__)
+    
+    if expid is None:
+        global __EXPID__
+        expid = __EXPID__
+
+    if expid is None:
+        raise RuntimeError('No experiment opened or specified')
+   
+    # fetch experiment
+    exp = exp_api.get_experiment(expid)
+    
+    if format == 'html':
+        return exp.body_html
+    else:
+        return exp.body
+
+
 def get_table_data(tableidx: int=0, header: bool=True, 
                    datatype: str='np', expid: int=None):   
     """Read and return table data from the body text of an experiment 
@@ -152,9 +230,10 @@ def get_table_data(tableidx: int=0, header: bool=True,
         'df': return a pandas dataframe,
         'np': return a dictionary of numpy arrays for each column. 
         The default is 'np'.
-    expid : int
+    expid : int, optional
         The id of the experiment in eLabFTW to be read.
         If None, the experiment specified by open_experiment() is used.
+        The default is None.
 
     Returns
     -------
@@ -213,7 +292,9 @@ def __get_upload_id(expid: int, filename: str):
     return uploadid
     
 
-def get_file_csv_data(filename: str, header: bool=True, sep: str=',', datatype: str='np', expid: int=None):   
+def get_file_csv_data(filename: str, 
+                      header: bool=True, sep: str=',', 
+                      datatype: str='np', expid: int=None):   
     """Read and return data from a csv-like text file attached to 
     an experiment stored in eLabFTW.
 
@@ -232,9 +313,10 @@ def get_file_csv_data(filename: str, header: bool=True, sep: str=',', datatype: 
         'df': return a pandas dataframe,
         'np': return a dictionary of numpy arrays for each column. 
         The default is 'np'.
-    expid : int
+    expid : int, optional
         The id of the experiment in eLabFTW to be read.
         If None, the experiment specified by open_experiment() is used.
+        The default is None.
 
     Returns
     -------
@@ -291,10 +373,11 @@ def upload_file(file: str, comment: str,
     replacefile : bool, optional
         If True, an existing file with the same name will be overwritten.
         The default is True.
-    expid : int
+    expid : int, optional
         The id of the experiment in eLabFTW into which the file
         should be uploaded.
         If None, the experiment specified by open_experiment() is used.
+        The default is None.
 
     Returns
     -------
@@ -347,10 +430,11 @@ def upload_image_from_figure(fig: Figure, filename: str, comment: str,
     dpi : optional
         The resolution of the image as defined in matplotlib's savefig().
         The default is 'figure'.
-    expid : int
+    expid : int, optional
         The id of the experiment in eLabFTW into which the image
         should be uploaded.
         If None, the experiment specified by open_experiment() is used.
+        The default is None.
 
     Returns
     -------
@@ -389,10 +473,11 @@ def upload_csv_data(data, filename: str, comment: str,
     index : bool, optional
         If True, write also dataframe row names (index) to file.
         The default is False.
-    expid : int
+    expid : int, optional
         The id of the experiment in eLabFTW into which the file
         should be uploaded.
         If None, the experiment specified by open_experiment() is used.
+        The default is None.
 
     Returns
     -------
@@ -425,10 +510,11 @@ def upload_this_jupyternotebook(comment: str, replacefile: bool=True,
     replacefile : bool, optional
         If True, an existing file with the same name will be overwritten.
         The default is True.
-    expid : int
+    expid : int, optional
         The id of the experiment in eLabFTW into which the jupyter notebook
         should be uploaded.
         If None, the experiment specified by open_experiment() is used.
+        The default is None.
         
     Returns
     -------
