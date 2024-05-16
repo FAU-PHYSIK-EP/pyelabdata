@@ -11,15 +11,18 @@ import h5py
 import tempfile
 import os
 import time
-import ipyparams
 from matplotlib.figure import Figure
 from io import StringIO, BytesIO
 from pathlib import Path
-from datetime import datetime, date, time
-from IPython.display import display, Javascript
+from datetime import datetime, date as dt_date, time as dt_time
+from ipylab import JupyterFrontEnd
+import asyncio
+
 
 __APICLIENT__ = None
 __EXPID__ = None
+
+__APP__ = JupyterFrontEnd()
 
 
 ### General functions ###
@@ -257,6 +260,7 @@ def get_maintext(format: str='html', expid: int=None):
 
 
 def get_table_data(tableidx: int=0, header: bool=True, 
+                   decimal: str='.', thousands: str=None,
                    datatype: str='np', expid: int=None):   
     """Read and return table data from the body text of an experiment 
     stored in eLabFTW.
@@ -270,6 +274,13 @@ def get_table_data(tableidx: int=0, header: bool=True,
         If True, the first table row contains the column names, which
         are used as headings for the pandas dataframe. 
         The default is True.
+    decimal: str, optional
+        Character representing the decimal point.
+        The default is '.'.
+    thousands: str, optional
+        Character used to parse thousands.
+        If None, ',' or '.' is used if decimal is '.' or ',', respectively.
+        The default is None.
     datatype : str, optional
         'df': return a pandas dataframe,
         'np': return a dictionary of numpy arrays for each column. 
@@ -302,7 +313,9 @@ def get_table_data(tableidx: int=0, header: bool=True,
     exp = exp_api.get_experiment(expid)
     
     # extract table
-    tables = pd.read_html(exp.body_html)
+    if thousands is None:
+        thousands = '.' if decimal==',' else ','
+    tables = pd.read_html(StringIO(exp.body_html), decimal=decimal, thousands=thousands)
     
     # extract selected table and assign header if requested
     if header:
@@ -368,9 +381,9 @@ def get_extrafields(fieldname: str=None, expid: int=None):
         if data[fieldname]['type'] == 'datetime-local':
             return datetime.fromisoformat(value)
         if data[fieldname]['type'] == 'date':
-            return date.fromisoformat(value)
+            return dt_date.fromisoformat(value)
         if data[fieldname]['type'] == 'time':
-            return time.fromisoformat(value)
+            return dt_time.fromisoformat(value)
         else:
             return value
 
@@ -462,6 +475,7 @@ def get_file_data(filename: str, filename_is_long_name: bool=False, expid: int=N
 def get_file_csv_data(filename: str, 
                       filename_is_long_name: bool=False,
                       header: bool=True, sep: str=',', 
+                      decimal: str='.', thousands: str=None,
                       datatype: str='np', expid: int=None):   
     """Read and return data from a csv-like text file attached to 
     an experiment stored in eLabFTW.
@@ -480,6 +494,13 @@ def get_file_csv_data(filename: str,
     sep : str, optional
         The column separator used in the file.
         The default is ','.
+    decimal: str, optional
+        Character representing the decimal point.
+        The default is '.'.
+    thousands: str, optional
+        Character used to parse thousands.
+        If None, ',' or '.' is used if decimal is '.' or ',', respectively.
+        The default is None.
     datatype : str, optional
         'df': return a pandas dataframe,
         'np': return a dictionary of numpy arrays for each column. 
@@ -500,8 +521,11 @@ def get_file_csv_data(filename: str,
     filedata = get_file_data(filename, filename_is_long_name, expid).decode('utf-8')
 
     # extract data
+    if thousands is None:
+        thousands = '.' if decimal==',' else ','
     df = pd.read_csv(StringIO(filedata), sep=sep, 
-                     header=(0 if header else 'infer'))
+                     header=(0 if header else 'infer'),
+                     decimal=decimal, thousands=thousands)
 
     # return result
     if datatype == 'df':
@@ -598,13 +622,23 @@ def create_extrafield(fieldname: str, value, fieldtype: str='text',
    
     # fetch experiment
     exp = exp_api.get_experiment(expid)
-    metadata = json.loads(exp.metadata)
+    if exp.metadata is None:
+        # no metadata yet, then create it
+        metadata = {'extra_fields': {}}
+    else:
+        metadata = json.loads(exp.metadata)
     
     # check if fieldname already exists
     if fieldname in metadata['extra_fields'].keys():
         raise RuntimeError('Fieldname already exists')
     
     if groupname is not None:
+        # no elabftw or extra_fields_groups entries, then create them
+        if 'elabftw' not in metadata.keys():
+            metadata['elabftw'] = {}
+        if 'extra_fields_groups' not in metadata['elabftw'].keys():
+            metadata['elabftw']['extra_fields_groups'] = []
+        
         # check if group already exists
         groupid = [group['id'] for group in metadata['elabftw']['extra_fields_groups'] 
                    if group['name']==groupname]
@@ -612,7 +646,10 @@ def create_extrafield(fieldname: str, value, fieldtype: str='text',
 
         # create group if not yet existing
         if groupid is None:
-            groupid = max([group['id'] for group in metadata['elabftw']['extra_fields_groups']]) + 1
+            if len(metadata['elabftw']['extra_fields_groups']) > 0:
+                groupid = max([group['id'] for group in metadata['elabftw']['extra_fields_groups']]) + 1
+            else:
+                groupid = 1
             metadata['elabftw']['extra_fields_groups'].append({'id': groupid, 'name': groupname})
     
     # create field
@@ -626,9 +663,9 @@ def create_extrafield(fieldname: str, value, fieldtype: str='text',
         if fieldtype == 'datetime-local':
             value = datetime.isoformat(value.replace(second=0, microsecond=0))
         if fieldtype == 'date':
-            value = date.isoformat(value)
+            value = dt_date.isoformat(value)
         if fieldtype == 'time':
-            value = time.isoformat(value.replace(second=0, microsecond=0))
+            value = dt_time.isoformat(value.replace(second=0, microsecond=0))
 
     metadata['extra_fields'][fieldname]['value'] = value
     
@@ -694,9 +731,9 @@ def update_extrafield(fieldname: str, value, expid: int=None):
         if fieldtype == 'datetime-local':
             value = datetime.isoformat(value.replace(second=0, microsecond=0))
         if fieldtype == 'date':
-            value = date.isoformat(value)
+            value = dt_date.isoformat(value)
         if fieldtype == 'time':
-            value = time.isoformat(value.replace(second=0, microsecond=0))
+            value = dt_time.isoformat(value.replace(second=0, microsecond=0))
         
     exp_api.patch_experiment(expid, body={'action': 'updatemetadatafield', fieldname: value})
 
@@ -886,6 +923,26 @@ def upload_csv_data(data, filename: str, comment: str,
         upload_file(tmpfile, comment, replacefile, expid=expid)
     
     
+async def _callback_savenotebook():
+    await __APP__.ready()
+
+    # save current notebook
+    print('Saving file ...')
+    __APP__.commands.execute('docmanager:save')
+
+
+async def _callback_upload(comment: str, replacefile: bool, expid: int):
+    await __APP__.ready()
+
+    # get filename of the current notebook
+    file = os.path.join(os.getcwd(), __APP__.sessions.current_session['name'])
+    print(file)
+    # upload to elabftw
+    print('Uploading to eLabFTW ...')
+    upload_file(file, comment, replacefile, expid=expid)
+    print('Done.')
+
+
 def upload_this_jupyternotebook(comment: str, replacefile: bool=True,
                                 expid: int=None):
     """Saves and uploads the current jupyter notebook
@@ -909,16 +966,8 @@ def upload_this_jupyternotebook(comment: str, replacefile: bool=True,
     None.
 
     """
-   
-    # get Jupyter notebook filename
-    filename = ipyparams.notebook_name
-    file = os.path.join(os.getcwd(), filename)
-    
-    # save notebook and wait for completion
-    start = os.path.getmtime(file)
-    display(Javascript('IPython.notebook.save_checkpoint()'))
-    while os.path.getmtime(file) == start:
-        time.sleep(0.1)
-        
-    # upload to elabftw
-    upload_file(file, comment, replacefile, expid=expid)
+
+    # start async tasks to save and upload notebook
+    asyncio.gather(_callback_savenotebook(), 
+                   _callback_upload(comment, replacefile, expid))
+
