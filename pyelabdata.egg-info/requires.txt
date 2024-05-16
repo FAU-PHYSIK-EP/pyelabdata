@@ -1,7 +1,9 @@
 numpy
 elabapi_python
 pandas
+h5py
 ipyparams
 matplotlib
 pathlib
+datetime
 IPython
