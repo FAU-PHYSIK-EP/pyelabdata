@@ -7,6 +7,8 @@ Examples for the use of pyelabdata can be found in the examples folder.
 
 ## Functions
 
+### General functions
+
 ```python
 def connect(host: str, apikey: str):
 ```
@@ -41,6 +43,19 @@ def close_experiment():
 Close the current experiment.
 Subsequent commands will not further operate on the experiment.
 
+### Read experiment data
+
+```python
+def get_experimentdata(expid: int=None):
+```
+Retrieve the complete data of the experiment.
+
+All parameters are optional.
+`expid` is an integer number which identifies the eLabFTW experiment; 
+if set to None, the currently opened experiment is used.
+
+The function returns a dictionary with the structured data.
+
 ```python
 def get_maintext(format: str='html', expid: int=None):
 ```
@@ -71,18 +86,99 @@ to the column heading (in case of `header = True`).
 `expid` is an integer number which identifies the eLabFTW experiment; 
 if set to None, the currently opened experiment is used.
 
+```python
+def get_extrafields(fieldname: str=None, expid: int=None):
+```
+In eLabFTW, so-called extra fields can be defined. These are
+key-value pairs, which are additionally described with units,
+value type, description and which may be grouped.
+
+All parameters are optional. If `fieldname` is None,
+all extra fields are returned as a dictionary.
+If `fieldname` is specified, the value of the entry
+is returned. If the field type is numeric or date/time,
+the return value is of the respective type.
+
+### Read files
 
 ```python
-def get_file_csv_data(filename: str, 
+def get_file_data(filename: str, filename_is_long_name: bool=False, expid: int=None):
+```
+Get the (binary) data from a file attached to eLabFTW experiments.
+`filename` is the name of the file stored in the experiment. 
+if `filename_is_long_name` is set to True, `filename` is 
+regarded as the long_name of the file stored in eLabFTW.
+
+The parameter `expid` is optional and has the same meaning as in
+`get_table_data()`. The binary data is returned as a byte string.
+
+```python
+def get_file_csv_data(filename: str, filename_is_long_name: bool=False,
                       header: bool=True, sep: str=',', 
                       datatype: str='np', expid: int=None):
 ```
 Get the data from csv files attached to eLabFTW experiments.
 `filename` is the name of the file stored in the experiment. 
+if `filename_is_long_name` is set to True, `filename` is 
+regarded as the long_name of the file stored in eLabFTW.
 
 All other parameters are optional. `sep` is the column separator,
 by default a comma. The parameters `header`, `datatype` and `expid` have the same
 meaning as in `get_table_data()`.
+
+```python
+def get_file_hdf5_data(filename: str, filename_is_long_name: bool=False, expid: int=None):
+```
+Get the data from a hdf5 file attached to eLabFTW experiments.
+`filename` is the name of the file stored in the experiment. 
+if `filename_is_long_name` is set to True, `filename` is 
+regarded as the long_name of the file stored in eLabFTW.
+
+The parameter `expid` is optional and has the same meaning as in
+`get_table_data()`. The function returns a hdf5 file object as 
+created by `h5py.File()`.
+
+### Update experiment data
+
+```python
+def create_extrafield(fieldname: str, value, fieldtype:str='text',
+                      unit: str=None, units=None, description: str=None,
+                      groupname: str=None,
+                      readonly: bool=False, required: bool=False,
+                      expid: int=None):
+```
+Create a new extra field with the name `fieldname` of type `fieldtype`
+(possible values: text, number, date, time, datetime; the default
+type is `text`) containing the value of `value`. 
+You can define a list of possible units in the
+parameter `units` and specify the default unit in `unit`.
+The extra field may be assigned to an extra field group with name
+`groupname`; if the group doesn't exist, it will be created.
+`readonly` and `required` control the respective property of the
+extra field. 
+Depending on `fieldtype`, `value` will automatically be converted
+to string using appropriate functions (e.g. datetime.isoformat).
+The parameter `expid` is optional and has the same meaning as in
+`get_table_data()`.
+
+```python
+def update_extrafield(fieldname: str, value, expid: int=None):
+```
+Update the value of the extra field with the name `fieldname`.
+Depending on the type of the extra field, 
+`value` will automatically be converted
+to string using appropriate functions (e.g. datetime.isoformat).
+The parameter `expid` is optional and has the same meaning as in
+`get_table_data()`.
+
+```python
+def delete_extrafield(fieldname: str, expid: int=None):
+```
+Delete the extra field with name `fieldname`.
+The parameter `expid` is optional and has the same meaning as in
+`get_table_data()`.
+
+### Upload files
 
 ```python
 def upload_file(file: str, comment: str,

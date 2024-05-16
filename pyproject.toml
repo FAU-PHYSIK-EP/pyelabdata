@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyelabdata"
-version = "0.1.7"
+version = "0.2.0"
 authors = [
     { name="Elektronikpraktikum, Department Physik, FAU Erlangen-Nürnberg", email="physik-ep@fau.de" },
     { name="Michael Krieger, Lehrstuhl für Angewandte Physik, FAU Erlangen-Nürnberg", email="michael.krieger@fau.de"}
@@ -27,9 +27,12 @@ dependencies = [
     "numpy",
     "elabapi_python",
     "pandas",
+    "json",
+    "h5py",
     "ipyparams",
     "matplotlib",
     "pathlib",
+    "datetime",
     "IPython"
 ]
 

@@ -6,17 +6,24 @@
 import numpy as np
 import elabapi_python
 import pandas as pd
+import json
+import h5py
 import tempfile
 import os
 import time
 import ipyparams
 from matplotlib.figure import Figure
-from io import StringIO
+from io import StringIO, BytesIO
 from pathlib import Path
+from datetime import datetime, date, time
 from IPython.display import display, Javascript
 
 __APICLIENT__ = None
 __EXPID__ = None
+
+
+### General functions ###
+
 
 def connect(host: str, apikey: str):
     """Connect to eLabFTW server API.
@@ -141,6 +148,9 @@ def close_experiment():
     __EXPID__ = None
 
 
+### Read experiment data ###    
+    
+    
 def __conv_df_to_np(df: pd.DataFrame) -> dict:
     """Convert a pandas dataframe to a dictionary of numpy arrays
     for each column with keys corresponding to the column headings.
@@ -167,6 +177,40 @@ def __conv_df_to_np(df: pd.DataFrame) -> dict:
             name = name + '_' + str(cno)
         data[name] = np.array(column.to_numpy(), dtype=float)
     return data
+
+
+def get_experimentdata(expid: int=None):
+    """Read and return the record of an experiment
+    stored in eLabFTW.
+    
+    Parameters
+    ----------
+    expid : int, optional
+        The id of the experiment in eLabFTW to be read.
+        If None, the experiment specified by open_experiment() is used.
+        The default is None.
+
+    Returns
+    -------
+    dictionary
+        Returns the experiment data
+
+    """
+
+    global __APICLIENT__
+    if __APICLIENT__ is None:
+        raise RuntimeError('Not connected to eLabFTW server')
+    exp_api = elabapi_python.ExperimentsApi(__APICLIENT__)
+    
+    if expid is None:
+        global __EXPID__
+        expid = __EXPID__
+
+    if expid is None:
+        raise RuntimeError('No experiment opened or specified')
+   
+    # fetch experiment
+    return exp_api.get_experiment(expid)
 
 
 def get_maintext(format: str='html', expid: int=None):
@@ -274,8 +318,66 @@ def get_table_data(tableidx: int=0, header: bool=True,
         return __conv_df_to_np(table)
     else:
         raise RuntimeError('Wrong datatype')
-    
 
+        
+def get_extrafields(fieldname: str=None, expid: int=None):
+    """Read and return the extra fields of an experiment
+    stored in eLabFTW.
+    
+    Parameters
+    ----------
+    fieldname: str, optional
+        If fieldname is None, a dictionary of all extra fields is returned,
+        otherwise the value of the field specified.
+        The default is None.
+    expid : int, optional
+        The id of the experiment in eLabFTW to be read.
+        If None, the experiment specified by open_experiment() is used.
+        The default is None.
+
+    Returns
+    -------
+    str or dictionary
+        Returns either the value of the field specified or a dictionary
+        of all extra fields.
+
+    """
+
+    global __APICLIENT__
+    if __APICLIENT__ is None:
+        raise RuntimeError('Not connected to eLabFTW server')
+    exp_api = elabapi_python.ExperimentsApi(__APICLIENT__)
+    
+    if expid is None:
+        global __EXPID__
+        expid = __EXPID__
+
+    if expid is None:
+        raise RuntimeError('No experiment opened or specified')
+   
+    # fetch experiment
+    exp = exp_api.get_experiment(expid)
+    
+    data = json.loads(exp.metadata)['extra_fields']
+    if fieldname is None:
+        return data
+    else:
+        value = data[fieldname]['value']
+        if data[fieldname]['type'] == 'number':
+            return float(value)
+        if data[fieldname]['type'] == 'datetime-local':
+            return datetime.fromisoformat(value)
+        if data[fieldname]['type'] == 'date':
+            return date.fromisoformat(value)
+        if data[fieldname]['type'] == 'time':
+            return time.fromisoformat(value)
+        else:
+            return value
+
+        
+### Read files ###    
+    
+    
 def __get_upload_id(expid: int, filename: str):
     global __APICLIENT__
     if __APICLIENT__ is None:
@@ -290,9 +392,75 @@ def __get_upload_id(expid: int, filename: str):
             uploadid = upload.id
             break   
     return uploadid
-    
 
+
+def __get_upload_id_by_long_name(expid: int, long_name: str):
+    global __APICLIENT__
+    if __APICLIENT__ is None:
+        raise RuntimeError('Not connected to eLabFTW server')
+    uploads_api = elabapi_python.UploadsApi(__APICLIENT__)
+
+    # fetch metadata of all uploads and search for filename
+    uploads = uploads_api.read_uploads('experiments', expid)
+    uploadid = None
+    for upload in uploads:
+        if upload.long_name == long_name:
+            uploadid = upload.id
+            break   
+    return uploadid
+
+
+def get_file_data(filename: str, filename_is_long_name: bool=False, expid: int=None):   
+    """Read and return binary data from a file attached to 
+    an experiment stored in eLabFTW.
+
+    Parameters
+    ----------
+    filename : str
+        The filename of the file to be read from the experiment.
+    filename_is_long_name: bool
+        The value of filename is the long_name stored used in eLabFTW.
+        The default is False.
+    expid : int, optional
+        The id of the experiment in eLabFTW to be read.
+        If None, the experiment specified by open_experiment() is used.
+        The default is None.
+
+    Returns
+    -------
+    bytes
+        Returns the binary data of the specified file.
+
+    """
+
+    global __APICLIENT__   
+    if __APICLIENT__ is None:
+        raise RuntimeError('Not connected to eLabFTW server')
+    uploads_api = elabapi_python.UploadsApi(__APICLIENT__)
+    
+    if expid is None:
+        global __EXPID__
+        expid = __EXPID__
+
+    if expid is None:
+        raise RuntimeError('No experiment opened or specified')
+    
+    if filename_is_long_name:
+        uploadid = __get_upload_id_by_long_name(expid, filename)
+    else:
+        uploadid = __get_upload_id(expid, filename)
+          
+    if uploadid is None:
+        raise RuntimeError('File not found in eLabFTW experiment')
+    else:
+        # fetch file data
+        return uploads_api.read_upload(
+            'experiments', expid, uploadid, format='binary', 
+            _preload_content=False).data
+
+    
 def get_file_csv_data(filename: str, 
+                      filename_is_long_name: bool=False,
                       header: bool=True, sep: str=',', 
                       datatype: str='np', expid: int=None):   
     """Read and return data from a csv-like text file attached to 
@@ -300,8 +468,11 @@ def get_file_csv_data(filename: str,
 
     Parameters
     ----------
-    filenamex : str
+    filename : str
         The filename of the file to be read from the experiment.
+    filename_is_long_name: bool
+        The value of filename is the long_name stored used in eLabFTW.
+        The default is False.
     header : bool, optional
         If True, the first table row contains the column names, which
         are used as headings for the pandas dataframe. 
@@ -325,10 +496,98 @@ def get_file_csv_data(filename: str,
 
     """
 
-    global __APICLIENT__   
+    # fetch file data
+    filedata = get_file_data(filename, filename_is_long_name, expid).decode('utf-8')
+
+    # extract data
+    df = pd.read_csv(StringIO(filedata), sep=sep, 
+                     header=(0 if header else 'infer'))
+
+    # return result
+    if datatype == 'df':
+        return df
+    elif datatype == 'np':
+        return __conv_df_to_np(df)
+    else:
+        raise RuntimeError('Wrong datatype')
+
+            
+def get_file_hdf5_data(filename: str, filename_is_long_name: bool=False, expid: int=None):   
+    """Read and return data from a hdf5 file attached to 
+    an experiment stored in eLabFTW.
+
+    Parameters
+    ----------
+    filename : str
+        The filename of the file to be read from the experiment.
+    filename_is_long_name: bool
+        The value of filename is the long_name stored used in eLabFTW.
+        The default is False.
+    expid : int, optional
+        The id of the experiment in eLabFTW to be read.
+        If None, the experiment specified by open_experiment() is used.
+        The default is None.
+
+    Returns
+    -------
+    h5py file object
+        Returns a file object as created by h5py.File.
+
+    """
+
+    # fetch file data
+    filestream = BytesIO(get_file_data(filename, filename_is_long_name, expid))
+
+    # open and return hdf5
+    return h5py.File(filestream, 'r')
+
+
+### Update experiment data ###
+
+
+def create_extrafield(fieldname: str, value, fieldtype: str='text',
+                      unit: str=None, units=None, description: str=None,
+                      groupname: str=None,
+                      readonly: bool=False, required: bool=False,
+                      expid: int=None):
+    """Create an extra field in an experiment.
+
+    Parameters
+    ----------
+    fieldname : str
+        The fieldname of the entry.
+    value :
+        The value of the entry.
+    fieldtype : str
+        The type of the field. Possible values: text, number, date, time, datetime-local.
+        The default is 'text'.
+    unit : str
+        The unit of the quantity.
+        The default is None.
+    description : str
+        The description of the entry.
+        The default is None.
+    readonly : bool
+        Make the field readonly.
+        The default is False.
+    required : bool
+        Make the field required.
+        The default is False.
+    expid : int, optional
+        The id of the experiment in eLabFTW to be read.
+        If None, the experiment specified by open_experiment() is used.
+        The default is None.
+
+    Returns
+    -------
+    None.
+
+    """
+
+    global __APICLIENT__
     if __APICLIENT__ is None:
         raise RuntimeError('Not connected to eLabFTW server')
-    uploads_api = elabapi_python.UploadsApi(__APICLIENT__)
+    exp_api = elabapi_python.ExperimentsApi(__APICLIENT__)
     
     if expid is None:
         global __EXPID__
@@ -336,29 +595,154 @@ def get_file_csv_data(filename: str,
 
     if expid is None:
         raise RuntimeError('No experiment opened or specified')
+   
+    # fetch experiment
+    exp = exp_api.get_experiment(expid)
+    metadata = json.loads(exp.metadata)
     
-    uploadid = __get_upload_id(expid, filename)
-          
-    if uploadid is None:
-        raise RuntimeError('File not found in eLabFTW experiment')
-    else:
-        # fetch file data
-        filedata = uploads_api.read_upload(
-            'experiments', expid, uploadid, format='binary', 
-            _preload_content=False).data.decode('utf-8')
+    # check if fieldname already exists
+    if fieldname in metadata['extra_fields'].keys():
+        raise RuntimeError('Fieldname already exists')
+    
+    if groupname is not None:
+        # check if group already exists
+        groupid = [group['id'] for group in metadata['elabftw']['extra_fields_groups'] 
+                   if group['name']==groupname]
+        groupid = groupid[0] if len(groupid)>0 else None
+
+        # create group if not yet existing
+        if groupid is None:
+            groupid = max([group['id'] for group in metadata['elabftw']['extra_fields_groups']]) + 1
+            metadata['elabftw']['extra_fields_groups'].append({'id': groupid, 'name': groupname})
+    
+    # create field
+    if fieldtype == 'datetime':
+        fieldtype = 'datetime-local'
+    metadata['extra_fields'][fieldname] = {'type': fieldtype}
+
+    if type(value) != str:
+        if fieldtype == 'number':
+            value = str(value)
+        if fieldtype == 'datetime-local':
+            value = datetime.isoformat(value.replace(second=0, microsecond=0))
+        if fieldtype == 'date':
+            value = date.isoformat(value)
+        if fieldtype == 'time':
+            value = time.isoformat(value.replace(second=0, microsecond=0))
+
+    metadata['extra_fields'][fieldname]['value'] = value
+    
+    if unit is not None:
+        metadata['extra_fields'][fieldname]['unit'] = unit
+        if units is None:
+            units = [unit]
+    if units is not None:
+        metadata['extra_fields'][fieldname]['units'] = units
+    if description is not None:
+        metadata['extra_fields'][fieldname]['description'] = description
+    if groupname is not None:
+        metadata['extra_fields'][fieldname]['group_id'] = groupid
+    if readonly:
+        metadata['extra_fields'][fieldname]['readonly'] = True
+    if required:
+        metadata['extra_fields'][fieldname]['required'] = True
+
+    # save to elabftw
+    exp_api.patch_experiment(expid, body={'metadata': json.dumps(metadata)})
+
+
+def update_extrafield(fieldname: str, value, expid: int=None):
+    """Update the value of an extra field of an experiment.
+
+    Parameters
+    ----------
+    fieldname : str
+        The fieldname of the entry.
+    value
+        The value of the entry.
+    expid : int, optional
+        The id of the experiment in eLabFTW to be read.
+        If None, the experiment specified by open_experiment() is used.
+        The default is None.
+
+    Returns
+    -------
+    None.
+
+    """
+
+    global __APICLIENT__
+    if __APICLIENT__ is None:
+        raise RuntimeError('Not connected to eLabFTW server')
+    exp_api = elabapi_python.ExperimentsApi(__APICLIENT__)
+    
+    if expid is None:
+        global __EXPID__
+        expid = __EXPID__
+
+    if expid is None:
+        raise RuntimeError('No experiment opened or specified')
         
-        # extract data
-        df = pd.read_csv(StringIO(filedata), sep=sep, 
-                         header=(0 if header else 'infer'))
-           
-        # return result
-        if datatype == 'df':
-            return df
-        elif datatype == 'np':
-            return __conv_df_to_np(df)
-        else:
-            raise RuntimeError('Wrong datatype')
+    if type(value) != str:
+        # fetch type of metadatafield
+        exp = exp_api.get_experiment(expid)
+        metadata = json.loads(exp.metadata)
+        fieldtype = metadata['extra_fields'][fieldname]['type']
+
+        if fieldtype == 'number':
+            value = str(value)
+        if fieldtype == 'datetime-local':
+            value = datetime.isoformat(value.replace(second=0, microsecond=0))
+        if fieldtype == 'date':
+            value = date.isoformat(value)
+        if fieldtype == 'time':
+            value = time.isoformat(value.replace(second=0, microsecond=0))
         
+    exp_api.patch_experiment(expid, body={'action': 'updatemetadatafield', fieldname: value})
+
+    
+def delete_extrafield(fieldname: str, expid: int=None):
+    """Delete an extra field in an experiment.
+
+    Parameters
+    ----------
+    fieldname : str
+        The fieldname of the entry.
+    expid : int, optional
+        The id of the experiment in eLabFTW to be read.
+        If None, the experiment specified by open_experiment() is used.
+        The default is None.
+
+    Returns
+    -------
+    None.
+
+    """
+
+    global __APICLIENT__
+    if __APICLIENT__ is None:
+        raise RuntimeError('Not connected to eLabFTW server')
+    exp_api = elabapi_python.ExperimentsApi(__APICLIENT__)
+    
+    if expid is None:
+        global __EXPID__
+        expid = __EXPID__
+
+    if expid is None:
+        raise RuntimeError('No experiment opened or specified')
+   
+    # fetch experiment
+    exp = exp_api.get_experiment(expid)
+    metadata = json.loads(exp.metadata)
+      
+    del metadata['extra_fields'][fieldname]
+
+    # save to elabftw
+    exp_api.patch_experiment(expid, body={'metadata': json.dumps(metadata)})
+    
+    
+### Upload files ###
+
         
 def upload_file(file: str, comment: str,
                 replacefile: bool=True, expid: int=None):
@@ -399,11 +783,15 @@ def upload_file(file: str, comment: str,
     
     if replacefile:
         uploadid = __get_upload_id(expid, os.path.basename(file))
-        if uploadid is not None:
-            uploads_api.delete_upload('experiments', expid, uploadid)
-    
-    uploads_api.post_upload('experiments', expid, 
-                            file=file, comment=comment)
+    else:
+        uploadid = None
+        
+    if uploadid is None:
+        uploads_api.post_upload('experiments', expid, 
+                                file=file, comment=comment)
+    else:
+        uploads_api.post_upload_replace('experiments', expid, uploadid,
+                                        file=file, comment=comment)
 
 
 def upload_image_from_figure(fig: Figure, filename: str, comment: str,
