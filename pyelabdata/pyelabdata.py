@@ -627,10 +627,13 @@ def create_extrafield(fieldname: str, value, fieldtype: str='text',
         metadata = {'extra_fields': {}}
     else:
         metadata = json.loads(exp.metadata)
+        if 'extra_fields' not in metadata.keys():
+            metadata['extra_fields'] = {}
     
     # check if fieldname already exists
     if fieldname in metadata['extra_fields'].keys():
-        raise RuntimeError('Fieldname already exists')
+        update_extrafield(fieldname, value, expid)
+        return
     
     if groupname is not None:
         # no elabftw or extra_fields_groups entries, then create them

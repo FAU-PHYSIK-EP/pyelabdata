@@ -69,7 +69,8 @@ eLabFTW (markdown or html).
 if set to None, the currently opened experiment is used.
 
 ```python
-def get_table_data(tableidx: int=0, header: bool=True, 
+def get_table_data(tableidx: int=0, header: bool=True,
+                   decimal: str='.', thousands: str=None,
                    datatype: str='np', expid: int=None):
 ```
 In eLabFTW, tables can be defined in the body text of experiments.
@@ -79,6 +80,10 @@ All parameters are optional. `tableidx` tells the function the
 return the data of the *n*<sup>th</sup> table, where counting starts with *n* = 0.
 If `header` is true, the function assumes that the table contains
 columns of data where the first element (row) is the column heading.
+`decimal` or `thousands` define the character representing the decimal point or
+the separator of thousands, respectively. If `thousands` is None, `,` or `.` is
+used if decimal is `.` or `,`, respectively. The default is `.` for `decimal` and None
+for `thousands`.
 `datatype` may be either `'df'` or `'np'` (default). For `'df'`, a pandas dataframe
 representing the table data is returned, whereas for `'np'` a dictionary
 of numpy arrays for each column is returned, in which the keys correspond
@@ -115,6 +120,7 @@ The parameter `expid` is optional and has the same meaning as in
 ```python
 def get_file_csv_data(filename: str, filename_is_long_name: bool=False,
                       header: bool=True, sep: str=',', 
+                      decimal: str='.', thousands: str=None,
                       datatype: str='np', expid: int=None):
 ```
 Get the data from csv files attached to eLabFTW experiments.
@@ -123,7 +129,8 @@ if `filename_is_long_name` is set to True, `filename` is
 regarded as the long_name of the file stored in eLabFTW.
 
 All other parameters are optional. `sep` is the column separator,
-by default a comma. The parameters `header`, `datatype` and `expid` have the same
+by default a comma. The parameters `header`, `decial`, `thousands`, 
+`datatype` and `expid` have the same
 meaning as in `get_table_data()`.
 
 ```python
@@ -150,6 +157,8 @@ def create_extrafield(fieldname: str, value, fieldtype:str='text',
 Create a new extra field with the name `fieldname` of type `fieldtype`
 (possible values: text, number, date, time, datetime; the default
 type is `text`) containing the value of `value`. 
+If the field already exists, only the value will be updated
+(all other parameters are ignored in this case).
 You can define a list of possible units in the
 parameter `units` and specify the default unit in `unit`.
 The extra field may be assigned to an extra field group with name
