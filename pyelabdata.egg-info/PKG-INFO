@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: pyelabdata
-Version: 0.2.3
+Version: 0.2.4
 Summary: pyelabdata provides functions for simple one-line access to data in eLabFTW
 Author-email: "Elektronikpraktikum, Department Physik, FAU Erlangen-Nürnberg" <physik-ep@fau.de>, "Michael Krieger, Lehrstuhl für Angewandte Physik, FAU Erlangen-Nürnberg" <michael.krieger@fau.de>
 Project-URL: Repository, https://github.com/FAU-PHYSIK-EP/pyelabdata
@@ -20,6 +20,7 @@ Requires-Dist: pathlib
 Requires-Dist: datetime
 Requires-Dist: ipylab
 Requires-Dist: asyncio
+Requires-Dist: lxml
 
 # pyelabdata
 pyelabdata provides functions for simple one-line access to data stored
