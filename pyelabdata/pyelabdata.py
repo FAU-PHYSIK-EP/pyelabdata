@@ -51,7 +51,13 @@ def connect(host: str, apikey: str):
     conf = elabapi_python.Configuration()
     conf.api_key['api_key'] = apikey
     conf.api_key_prefix['api_key'] = 'Authorization'
-    conf.host = host
+    if 'api' in host:
+        conf.host = host
+    else:
+        if host[-1] == '/':
+            conf.host = host + 'api/v2'
+        else:
+            conf.host = host + '/api/v2'
     conf.debug = False
     conf.verify_ssl = True
     
@@ -74,8 +80,24 @@ def disconnect():
     __APICLIENT__ = None
 
 
-def list_experiments(searchstring: str='', tags=[]):
-    """Return a list of all experiments that contain searchstring
+def get_teamid():
+    """Return the team id associated with the api key used.
+
+    Returns
+    -------
+    The team id associated with the api key used.
+
+    """
+    global __APICLIENT__
+    if __APICLIENT__ is None:
+        raise RuntimeError('Not connected to eLabFTW server')
+    teams_api = elabapi_python.TeamsApi(__APICLIENT__)
+    return teams_api.read_team('current').id
+
+
+def list_experiments(searchstring: str='', tags=[], only_current_team: bool=True):
+    """Return a list of all experiments within the team associated 
+    with the api key used that contain searchstring
     in title, body or elabid and that match the tags.
 
     Parameters
@@ -100,7 +122,13 @@ def list_experiments(searchstring: str='', tags=[]):
     exp_api = elabapi_python.ExperimentsApi(__APICLIENT__)
 
     exps = exp_api.read_experiments(q=searchstring, tags=tags, limit=9999)
-    return [exp.id for exp in exps]
+    
+    teamid = get_teamid()
+    expids = []
+    for exp in exps:
+        if exp.team == teamid or not only_current_team:
+            expids.append(exp.id)
+    return expids
 
 
 def open_experiment(expid: int, returndata: bool=False):

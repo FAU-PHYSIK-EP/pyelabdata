@@ -13,13 +13,20 @@ Examples for the use of pyelabdata can be found in the examples folder.
 def connect(host: str, apikey: str):
 ```
 Connects to the API interface of the eLabFTW server specified by the
-parameter `host` (e.g. `https://yourserver.org/api/v2`) using the given
-`apikey`.
+parameter `host` (e.g. `https://yourserver.org/api/v2`) 
+using the given `apikey`.
+If `api` is missing in the url, `/api/v2` will be added automatically.
+Thus, `https://yourserver.org` would be enough.
 
 ```python
 def disconnect():
 ```
 Disconnect from the eLabFTW server.
+
+```python
+def get_teamid():
+```
+Return the team id associated with the api key used
 
 ```python
 def list_experiments(searchstring: str='', tags=[]):
