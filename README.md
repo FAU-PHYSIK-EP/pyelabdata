@@ -10,13 +10,14 @@ Examples for the use of pyelabdata can be found in the examples folder.
 ### General functions
 
 ```python
-def connect(host: str, apikey: str):
+def connect(host: str, apikey: str, verify_ssl: bool=True):
 ```
 Connects to the API interface of the eLabFTW server specified by the
 parameter `host` (e.g. `https://yourserver.org/api/v2`) 
 using the given `apikey`.
 If `api` is missing in the url, `/api/v2` will be added automatically.
 Thus, `https://yourserver.org` would be enough.
+The optional parameter `verify_ssl` allows to disable ssl verification.
 
 ```python
 def disconnect():
