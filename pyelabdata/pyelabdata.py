@@ -28,7 +28,7 @@ __APP__ = JupyterFrontEnd()
 ### General functions ###
 
 
-def connect(host: str, apikey: str):
+def connect(host: str, apikey: str, verify_ssl: bool=True):
     """Connect to eLabFTW server API.
     
     Parameters
@@ -38,6 +38,8 @@ def connect(host: str, apikey: str):
         e.g. https://server/api/v2.
     apikey : str
         API key to be used in order to access the eLabFTW data.
+    verify_ssl : bool, optional
+        If True, SSL certificates are verified.
 
     Returns
     -------
@@ -59,7 +61,7 @@ def connect(host: str, apikey: str):
         else:
             conf.host = host + '/api/v2'
     conf.debug = False
-    conf.verify_ssl = True
+    conf.verify_ssl = verify_ssl
     
     # connect to api
     __APICLIENT__ = elabapi_python.ApiClient(conf)
