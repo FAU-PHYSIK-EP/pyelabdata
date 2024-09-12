@@ -23,18 +23,9 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent"
 ]
-dependencies = [
-    "numpy",
-    "elabapi_python",
-    "pandas",
-    "h5py",
-    "matplotlib",
-    "pathlib",
-    "datetime",
-    "ipylab",
-    "asyncio",
-    "lxml"
-]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
 
 [project.urls]
 "Repository" = "https://github.com/FAU-PHYSIK-EP/pyelabdata"

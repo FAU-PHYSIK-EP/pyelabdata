@@ -1,0 +1,11 @@
+    numpy
+    elabapi_python
+    pandas
+    h5py
+    matplotlib
+    pathlib
+    datetime
+    ipylab
+    asyncio
+    lxml
+    python-dotenv

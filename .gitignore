@@ -1,6 +1,7 @@
 .vscode/
-.env/
+.venv/
 dist/
 *.egg-info/
 .test/
 __pycache__/
+**/.env
