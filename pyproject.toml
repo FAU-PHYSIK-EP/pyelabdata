@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyelabdata"
-version = "0.2.7"
+version = "0.2.8"
 authors = [
     { name="Elektronikpraktikum, Department Physik, FAU Erlangen-Nürnberg", email="physik-ep@fau.de" },
     { name="Michael Krieger, Lehrstuhl für Angewandte Physik, FAU Erlangen-Nürnberg", email="michael.krieger@fau.de"}

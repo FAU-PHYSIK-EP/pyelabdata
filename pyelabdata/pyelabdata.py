@@ -867,6 +867,7 @@ def upload_file(file: str, comment: str,
 def upload_image_from_figure(fig: Figure, filename: str, comment: str,
                              replacefile: bool=True,
                              format: str='png', dpi='figure',
+                             bbox_inches='tight',
                              expid: int=None):
     """Generate image from matplotlib figure and upload it to
     an experiment on eLabFTW
@@ -904,7 +905,8 @@ def upload_image_from_figure(fig: Figure, filename: str, comment: str,
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpfile = os.path.join(tmpdir, 
                                Path(filename).with_suffix('.' + format))
-        fig.savefig(tmpfile, format=format, facecolor='white', dpi=dpi)
+        fig.savefig(tmpfile, format=format, facecolor='white', dpi=dpi,
+                    bbox_inches=bbox_inches)
         upload_file(tmpfile, comment, replacefile, expid=expid)
         
         
