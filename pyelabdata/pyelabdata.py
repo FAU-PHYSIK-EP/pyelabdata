@@ -97,7 +97,8 @@ def get_teamid():
     return teams_api.read_team('current').id
 
 
-def list_experiments(searchstring: str='', tags=[], only_current_team: bool=True):
+def list_experiments(searchstring: str='', tags=[], only_current_team: bool=True,
+                     list_keys=['id']):
     """Return a list of all experiments within the team associated 
     with the api key used that contain searchstring
     in title, body or elabid and that match the tags.
@@ -111,6 +112,12 @@ def list_experiments(searchstring: str='', tags=[], only_current_team: bool=True
     tags : list, optional
         A list of tags for which experiments should be searched.
         The default is an empty list.
+    only_current_team : bool, optional
+        If True, only experiments from the current team will be listed.
+        The default is True.
+    list_keys : list, optional
+        A list of keys to include in the returned experiment data.
+        The default is ['id'].
 
     Returns
     -------
@@ -126,11 +133,17 @@ def list_experiments(searchstring: str='', tags=[], only_current_team: bool=True
     exps = exp_api.read_experiments(q=searchstring, tags=tags, limit=9999)
     
     teamid = get_teamid()
-    expids = []
+    explist = []
     for exp in exps:
         if exp.team == teamid or not only_current_team:
-            expids.append(exp.id)
-    return expids
+            if len(list_keys) == 1:
+                explist.append(getattr(exp, list_keys[0]))
+            else:
+                expdata = {}
+                for key in list_keys:
+                    expdata[key] = getattr(exp, key)
+                explist.append(expdata)
+    return explist
 
 
 def open_experiment(expid: int, returndata: bool=False):
