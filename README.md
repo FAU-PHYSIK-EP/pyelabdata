@@ -30,11 +30,12 @@ def get_teamid():
 Return the team id associated with the api key used
 
 ```python
-def list_experiments(searchstring: str='', tags=[]):
+def list_experiments(searchstring: str='', tags=[], only_current_team: bool=True,
+                     list_keys=['id']):
 ```
-Retrieve a list of ids of all experiments that contain `searchstring`
-in the title, body or elabid and that match the tags specified in `tags`.
-All parameters are optional. If nothing is specified, all accessible
+Retrieve a list of all experiments that contain `searchstring`
+in the title, body or elabid and that match the tags specified in `tags`. If `only_current_team` is set to true, only experiments within the current team are listed. With `list_keys` the keys are defined which are returned by the function; if only one key is listed, the return value is a list of values corresponding to that key (e.g. by default only a list of experiment ids is returned), if more than one key is requested, a list of dictionaries (with key-value pairs) is returned.
+All parameters are optional. If nothing is specified, all ids of accessible
 experiments will be listed.
 
 ```python
