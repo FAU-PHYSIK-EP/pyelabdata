@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyelabdata"
-version = "0.2.9"
+version = "0.2.10"
 authors = [
     { name="Elektronikpraktikum, Department Physik, FAU Erlangen-Nürnberg", email="physik-ep@fau.de" },
     { name="Michael Krieger, Lehrstuhl für Angewandte Physik, FAU Erlangen-Nürnberg", email="michael.krieger@fau.de"}
@@ -24,7 +24,19 @@ classifiers = [
     "Operating System :: OS Independent"
 ]
 
-dependencies = {file = ["requirements.txt"]}
+dependencies = [
+    "numpy",
+    "elabapi_python",
+    "pandas",
+    "h5py",
+    "matplotlib",
+    "pathlib",
+    "datetime",
+    "ipylab",
+    "asyncio",
+    "lxml",
+    "python-dotenv"
+]
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
