@@ -24,6 +24,15 @@ classifiers = [
     "Operating System :: OS Independent"
 ]
 
+dependencies = [
+    "numpy",
+    "elabapi-python",
+    "pandas",
+    "h5py",
+    "matplotlib",
+    "ipylab"
+]
+
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
 
