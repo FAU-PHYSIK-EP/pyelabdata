@@ -1,3 +1,67 @@
+# -*- coding: utf-8 -*-
+# MIT License
+# 
+# Copyright (c) 2025-02-26 Michael Krieger (lapmk) https://github.com/FAU-PHYSIK-EP/pyelabdata
+# based on Michael Krieger (lapmk): https://github.com/FAU-PHYSIK-EP/pyelabdata/blob/main/pyelabdata/pyelabdata.py
+# with licence "MIT License": https://github.com/FAU-PHYSIK-EP/pyelabdata/blob/main/LICENSE
+# 
+# 
+# File: pyelabdata.py
+# Author: Ron Dockhorn
+# Date: 2026-07-15
+# Description: A simple wrapper of the elabapi_python package.
+# 
+# Version: 0.3.1
+# Modified: 2026-07-07
+# 
+# Changes:
+# + added "get_info()"
+#
+# Version: 0.3.2
+# Modified: 2026-07-15
+# 
+# Changes:
+# + added "get_steps()"
+# + added "create_step()"
+# + added "update_step()"
+# + added "delete_step()"
+
+"""
+  A simple wrapper of the elabapi_python package (https://github.com/elabftw/elabapi-python)
+  based on Michael Krieger's "pyelabdata.py" (2025-02-21) ,see https://github.com/FAU-PHYSIK-EP/pyelabdata/blob/main/pyelabdata/pyelabdata.py
+  with "MIT License": https://github.com/FAU-PHYSIK-EP/pyelabdata/blob/main/LICENSE
+  This version is also released under "MIT License" 
+  Mostly the wrapper adds and redefines the following features for eLabFTW (5.3.11):
+    - creation of experiments
+    - creation of metadata (modified grouping and standard)
+  
+  Attributes:
+    None
+
+  Methods:
+  connect(host, apikey, verify_ssl) -- connect to server instance
+  disconnect() -- disconnect from server
+  get_teamid() -- return the team id of provided apikey
+  list_experiments(searchstring, tags, only_current_team, list_keys) -- provides a list of all experiments which are accessible with the apikey
+  create_experiment() --  creates an experiment on server
+  open_experiment(expid, returndata) -- access an already existing experiment
+  close_experiment() -- close the connection to experiment 
+  get_info() -- return the public accessible info page
+  get_experimentdata(expid) -- provides access to the record of an experiment
+  get_maintext(format, expid) -- provides access to the general description (html body) of an experiment
+  create_extrafield - creates an specific metadata field of an experiment
+  update_extrafield - overwrites an specific metadata field of an experiment
+  delete_extrafield - removes an specific metadata field of an experiment
+  update_experiment_title(title, expid) -- overwrites the title of an experiment
+  replace_experiment_metadata(metadata, expid) -- overwrites the metadata of an experiment
+  upload_file(file, comment, replacefile, expid) -- upload of a file to the server
+  upload_this_jupyternotebook(comment, replacefile, expid) -- self-contained upload of the jupyter notebook to server
+  get_steps - provides a list of all steps which are associates with the experiment
+  create_step - creates a step within the experiment
+  update_step - updates a step of the experiment (title or finished flag)
+  delete_step - deletes a step of the experiment
+"""
+
 import numpy as np
 import pandas as pd
 import json
@@ -105,6 +169,24 @@ def _patch_json(path: str, body: Dict[str, Any]) -> Any:
         return None
     return r.json()
 
+def _post_json(path: str, body: Dict[str, Any], *, params: Optional[Dict[str, Any]] = None) -> Tuple[Any, int, Dict[str, Any]]:
+    r = _request("POST", path, params=params, json_body=body, stream=False)
+
+    status_code = r.status_code
+    headers = dict(r.headers)
+
+    if status_code == 204:
+        return None, status_code, headers
+
+    # empty / whitespace body
+    if not r.text or not r.text.strip():
+        return None, status_code, headers
+
+    # JSON body (if any)
+    try:
+        return r.json(), status_code, headers
+    except ValueError:
+        raise RuntimeError(f"Non-JSON response ({status_code}): {r.text[:500]}")
 
 # -----------------------
 # General functions
@@ -185,7 +267,45 @@ def open_experiment(expid: int, returndata: bool = False):
 def close_experiment():
     global __EXPID__
     __EXPID__ = None
+    
+def create_experiment(title="Untitled", body="", content_type=2):
+    """
+    Create an experiment on eLabFTW and return its id.
+    """
+    global __EXPID__
+    
+    # Build request payload according to API v2 docs
+    payload = {
+        "title": title,
+        "body": body,
+        "content_type": content_type,  # 1 (html) / 2 (MarkDown) depending on your instance mapping
+    }
 
+    response, status_code, headers = _post_json(f"/experiments", body=payload)
+    
+    
+    if status_code in (200, 201):
+        location = headers.get("Location") or headers.get("location")
+        if not location:
+            # sometimes id is returned in JSON
+            if isinstance(response, dict) and "id" in response:
+                exp_id = int(response["id"])
+            else:
+                raise RuntimeError(f"Created experiment but no Location header and no id in response: {response!r}")
+        else:
+            exp_id = int(location.rstrip("/").split("/")[-1])
+
+        __EXPID__ = exp_id
+        return exp_id
+
+    raise RuntimeError(f"Could not create experiment (status={status_code}). Response: {response!r}")
+
+# --------------------------------
+# Get Info about eLabFTW 
+# --------------------------------
+def get_info():
+     """Return the public info payload of the eLabFTW instance."""
+     return _get_json("/info")
 
 # -----------------------
 # Read experiment data
@@ -358,6 +478,35 @@ def get_file_hdf5_data(filename: str, filename_is_long_name: bool = False, expid
 # Update experiment data
 # -----------------------
 
+def update_experiment_title(title: str, expid: int=None):
+    """Update the title of an experiment.
+
+    Parameters
+    ----------
+    title : str
+        The new title name of the experiment.
+    expid : int, optional
+        The id of the experiment in eLabFTW to be read.
+        If None, the experiment specified by open_experiment() or create_experiment() is used.
+        The default is None.
+
+    Returns
+    -------
+    None.
+
+    """
+    if expid is None:
+        global __EXPID__
+        expid = __EXPID__
+
+    if expid is None:
+        raise RuntimeError('No experiment opened or specified')
+
+    if not isinstance(title, str):
+        raise TypeError("title must be a str")
+    _patch_json(f"/experiments/{expid}", body={"title": title})
+    
+
 def create_extrafield(
     fieldname: str,
     value,
@@ -368,6 +517,8 @@ def create_extrafield(
     groupname: str = None,
     readonly: bool = False,
     required: bool = False,
+    position: int = None,
+    options: list = None,
     expid: int = None,
 ):
     if expid is None:
@@ -431,7 +582,25 @@ def create_extrafield(
         metadata["extra_fields"][fieldname]["readonly"] = True
     if required:
         metadata["extra_fields"][fieldname]["required"] = True
+    if position is not None:
+        metadata["extra_fields"][fieldname]["position"] = position
+    
+    if fieldtype == "checkbox":
+        if isinstance(value, str):
+            if value not in ("on", "off"):
+                raise ValueError("checkbox value must be 'on' or 'off'")
+        else:
+            raise ValueError("checkbox value must be a string 'on' or 'off'")
 
+    metadata["extra_fields"][fieldname]["value"] = value
+
+    if fieldtype == "select":
+        options = options or []
+        if value not in options:
+            options.append(value)
+        metadata["extra_fields"][fieldname]["options"] = options
+    
+    
     # PATCH /experiments/{id} with {"metadata": "<json string>"} :contentReference[oaicite:7]{index=7}
     _patch_json(f"/experiments/{expid}", {"metadata": json.dumps(metadata)})
 
@@ -475,6 +644,181 @@ def delete_extrafield(fieldname: str, expid: int = None):
 
     _patch_json(f"/experiments/{expid}", {"metadata": json.dumps(metadata)})
 
+def replace_experiment_metadata(metadata: dict, expid: int=None):
+    """Update the metadata of an experiment.
+
+    Parameters
+    ----------
+    metadata : dict
+        A JSON based metadata entry following a special schema in eLabFTW.
+    expid : int, optional
+        The id of the experiment in eLabFTW to be read.
+        If None, the experiment specified by open_experiment() or create_experiment() is used.
+        The default is None.
+
+    Returns
+    -------
+    None.
+
+    """
+
+    if expid is None:
+        global __EXPID__
+        expid = __EXPID__
+    if expid is None:
+        raise RuntimeError("No experiment opened or specified")
+    
+    if not isinstance(metadata, dict):
+        raise TypeError("metadata must be a dict")
+    _patch_json(f"/experiments/{expid}", {"metadata": json.dumps(metadata)})
+
+def get_steps(expid: int = None) -> List[Dict[str, Any]]:
+    """Get all steps for an experiment.
+    
+    Parameters
+    ----------
+    expid : int, optional
+        The experiment ID. If None, uses the currently opened experiment.
+        
+    Returns
+    -------
+    list of dict
+        A list of step dictionaries containing step information
+        
+    Raises
+    ------
+    RuntimeError
+        If no experiment is opened or specified and no experiment ID is provided
+    """
+    if expid is None:
+        global __EXPID__
+        expid = __EXPID__
+    if expid is None:
+        raise RuntimeError("No experiment opened or specified")
+    return _get_json(f"/experiments/{expid}/steps")
+
+def create_step(expid: int = None, body: Optional[str] = None) -> int:
+    """Create a new step for an experiment.
+    
+    Parameters
+    ----------
+    expid : int, optional
+        The experiment ID (uses current if not specified)
+    body : str, optional
+        The body content for the new step
+        
+    Returns
+    -------
+    int
+        The ID of the newly created step
+        
+    Raises
+    ------
+    RuntimeError
+        If the step creation fails
+    ValueError
+        If body is not a string
+    """
+    if expid is None:
+        global __EXPID__
+        expid = __EXPID__
+    if expid is None:
+        raise RuntimeError("No experiment opened or specified")
+    
+    # Validate input
+    if not isinstance(body, str):
+        raise ValueError("body must be a string")
+    
+    payload = {
+        "body": body,
+    }
+    
+    response, status_code, headers = _post_json(f"/experiments/{expid}/steps", body=payload)                                                                                                                                           
+    if status_code in (200, 201):
+        location = headers.get("Location") or headers.get("location")
+        if not location:
+            # sometimes id is returned in JSON
+            if isinstance(response, dict) and "id" in response:
+                step_id = int(response["id"])
+                return step_id
+            else:
+                raise RuntimeError(f"Created step but no Location header and no id in response: {response!r}")
+        else:
+            step_id = int(location.rstrip("/").split("/")[-1])
+            return step_id
+    
+    raise RuntimeError(f"Could not create step (status={status_code}). Response: {response!r}")                                                                                                                                        
+
+def update_step(stepid: int, expid: int = None, body: Optional[str] = None, toggle_finished: Optional[bool] = None) -> Dict[str, Any]:
+    """Update an existing step.
+    
+    Parameters
+    ----------
+    stepid : int
+        The ID of the step to update
+    expid : int, optional
+        The experiment ID (uses current if not specified)
+    body : str, optional
+        New body content for the step
+    toggle_finished : bool, optional
+        Toggle the finished status of the step
+        
+    Returns
+    -------
+    dict
+        Status information about the update operation
+    """
+    if expid is None:
+        global __EXPID__
+        expid = __EXPID__
+    if expid is None:
+        raise RuntimeError("No experiment opened or specified")
+    
+    # Validate inputs
+    if not isinstance(stepid, int) or stepid <= 0:
+        raise ValueError("stepid must be a positive integer")
+    
+    if body is not None and not isinstance(body, str):
+        raise TypeError("body must be a string")
+    
+    if toggle_finished is not None and not isinstance(toggle_finished, bool):
+        raise TypeError("toggle_finished must be a boolean")
+    
+    responses: List[Any] = []
+    
+    if body is not None:
+        resp = _patch_json(f"/experiments/{expid}/steps/{stepid}", {"body": body})
+        responses.append({"type": "update", "response": resp})
+    if toggle_finished is not None:
+        # For finishing a step, we need to use the action parameter correctly
+        if toggle_finished:
+            resp = _patch_json(f"/experiments/{expid}/steps/{stepid}", {"action": "finish"})
+            responses.append({"type": "finish", "response": resp})
+    
+    return responses
+
+def delete_step(stepid: int, expid: int = None) -> None:
+    """Delete a step from an experiment.
+    
+    Parameters
+    ----------
+    stepid : int
+        The ID of the step to delete
+    expid : int, optional
+        The experiment ID. If None, uses the currently opened experiment.
+        
+    Raises
+    ------
+    RuntimeError
+        If no experiment is opened or specified and no experiment ID is provided
+    """
+    if expid is None:
+        global __EXPID__
+        expid = __EXPID__
+    if expid is None:
+        raise RuntimeError("No experiment opened or specified")
+    
+    _request("DELETE", f"/experiments/{expid}/steps/{stepid}")
 
 # -----------------------
 # Upload files

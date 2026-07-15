@@ -9,3 +9,5 @@
     asyncio
     lxml
     python-dotenv
+    requests
+    

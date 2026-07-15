@@ -25,9 +25,14 @@ def disconnect():
 Disconnect from the eLabFTW server.
 
 ```python
+def get_info():
+```
+Return the info page about the instance.
+
+```python
 def get_teamid():
 ```
-Return the team id associated with the api key used
+Return the team id associated with the api key used.
 
 ```python
 def list_experiments(searchstring: str='', tags=[], only_current_team: bool=True,
@@ -37,6 +42,12 @@ Retrieve a list of all experiments that contain `searchstring`
 in the title, body or elabid and that match the tags specified in `tags`. If `only_current_team` is set to true, only experiments within the current team are listed. With `list_keys` the keys are defined which are returned by the function; if only one key is listed, the return value is a list of values corresponding to that key (e.g. by default only a list of experiment ids is returned), if more than one key is requested, a list of dictionaries (with key-value pairs) is returned.
 All parameters are optional. If nothing is specified, all ids of accessible
 experiments will be listed.
+
+```python
+def create_experiment(title="Untitled", body="", content_type=2):
+```
+Creates and opens an empty experiment in eLabFTW returning the id of the entry. The `body` can be used to provide the main text of the experiment.
+The `content_type` specifies the content type for main text: (1) HTML or (2) Markdown (default). All subsequent commands will operate on the opened experiment.
 
 ```python
 def open_experiment(expid: int, returndata: bool=False):
@@ -161,21 +172,24 @@ def create_extrafield(fieldname: str, value, fieldtype:str='text',
                       unit: str=None, units=None, description: str=None,
                       groupname: str=None,
                       readonly: bool=False, required: bool=False,
+                      position: int = None, options: list = None,
                       expid: int=None):
 ```
 Create a new extra field with the name `fieldname` of type `fieldtype`
-(possible values: text, number, date, time, datetime; the default
-type is `text`) containing the value of `value`. 
+(possible values: text, number, date, time, datetime, select, checkbox; the default type is `text`) containing the value of `value`,
+see also the [eLabFTW documentation](https://doc.elabftw.net/docs/usage/metadata#extra-fields-objects). 
 If the field already exists, only the value will be updated
 (all other parameters are ignored in this case).
 You can define a list of possible units in the
 parameter `units` and specify the default unit in `unit`.
 The extra field may be assigned to an extra field group with name
-`groupname`; if the group doesn't exist, it will be created.
-`readonly` and `required` control the respective property of the
-extra field. 
+`groupname`; if the group doesn't exist, it will be created.  
+The `readonly` and `required` control the respective property of the
+extra field. The `position` adjusts the order of appearance in the group `groupname`.  
 Depending on `fieldtype`, `value` will automatically be converted
-to string using appropriate functions (e.g. datetime.isoformat).
+to string using appropriate functions (e.g. datetime.isoformat).  
+In the case of `fieldtype='select'`, the `options` provide a list of defined values; if `value` is not a member of `options` it will be added to the default list.
+In the case of `fieldtype='checkbox'` the `value` must be either `on` or `off`.  
 The parameter `expid` is optional and has the same meaning as in
 `get_table_data()`.
 
@@ -195,6 +209,32 @@ def delete_extrafield(fieldname: str, expid: int=None):
 Delete the extra field with name `fieldname`.
 The parameter `expid` is optional and has the same meaning as in
 `get_table_data()`.
+
+```python
+def replace_experiment_metadata(metadata: dict, expid: int=None):
+```
+Deletes and replaces all extra fields of the experiment with dictionary `metadata`. The `metadata` dict should be JSON-serializable according to the schema:
+```python
+metadata = {
+    "elabftw": {
+        "extra_fields_groups":[
+            {"id":1, "name": "Group Name1"}, 
+            {"id":2, "name": "Group Name2"},
+            ]
+        },
+    "extra_fields":{
+        "ExtraField1": {
+            "type":"text", "value": "Some Value",
+            "group_id":1, "position":0,
+            },
+        "ExtraField2": {
+            "type":"text", "value": "Another Value",
+            "group_id":2, "position":0,
+            },
+	 }
+}
+```
+
 
 ### Upload files
 
@@ -259,5 +299,55 @@ jupyter notebook.
 All other parameters are optional. If `replacefile` is true, an existing 
 file with the same filename will be replaced. Otherwise, a new attachment
 with the same filename will be created. 
+`expid` is an integer number which identifies the eLabFTW experiment; 
+if set to None, the currently opened experiment is used.
+
+
+### Experiment Steps
+
+```python
+def get_steps(expid: int=None):
+```
+Get all steps for an experiment.
+
+All parameters are optional.
+`expid` is an integer number which identifies the eLabFTW experiment; 
+if set to None, the currently opened experiment is used.
+
+The function returns a list of dictionaries containing the step data.
+
+```python
+def create_step(expid: int=None, body: str=""):
+```
+Create a new step for an experiment.
+
+All parameters are optional.
+`expid` is an integer number which identifies the eLabFTW experiment; 
+if set to None, the currently opened experiment is used.
+`body` is the body content for the new step.
+
+The function returns the ID of the newly created step.
+
+```python
+def update_step(stepid: int, expid: int=None, body: str=None, toggle_finished: bool=None):
+```
+Update an existing step.
+
+All parameters are optional except stepid.
+`stepid` is the ID of the step to update.
+`expid` is an integer number which identifies the eLabFTW experiment; 
+if set to None, the currently opened experiment is used.
+`body` is the new body content for the step (optional).
+`toggle_finished` is a boolean to toggle the finished status of the step from `on` to `off` and vice versa (optional).
+
+The function returns a dictionary with status information about the update operation.
+
+```python
+def delete_step(stepid: int, expid: int=None):
+```
+Delete a step from an experiment.
+
+All parameters are optional.
+`stepid` is the ID of the step to delete.
 `expid` is an integer number which identifies the eLabFTW experiment; 
 if set to None, the currently opened experiment is used.
